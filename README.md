@@ -43,6 +43,9 @@ npx serve .
 3. Environment Variables 추가:
    - `SUPABASE_URL`: Supabase URL
    - `SUPABASE_ANON_KEY`: Supabase anon key
+4. 배포 후 앱은 `/api/config`를 통해 위 환경변수를 읽어 자동 연결됩니다.
+
+> 참고: 로컬에서는 `env.js` 방식, Vercel에서는 Environment Variables 방식으로 동작합니다.
 
 ## 기능
 

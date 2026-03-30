@@ -450,12 +450,29 @@
   </div>
 
   <script>
-    const SUPABASE_URL = window.env?.SUPABASE_URL || localStorage.getItem('supabase_url') || '';
-    const SUPABASE_ANON_KEY = window.env?.SUPABASE_ANON_KEY || localStorage.getItem('supabase_anon_key') || '';
-    
     var supabase = null;
-    if (SUPABASE_URL && SUPABASE_ANON_KEY && window.supabase) {
-      supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    
+    async function initializeSupabase() {
+      // 1) local env.js 2) localStorage 3) Vercel /api/config 순서로 보완
+      let url = window.env?.SUPABASE_URL || localStorage.getItem('supabase_url') || '';
+      let key = window.env?.SUPABASE_ANON_KEY || localStorage.getItem('supabase_anon_key') || '';
+
+      try {
+        const res = await fetch('/api/config', { cache: 'no-store' });
+        if (res.ok) {
+          const cfg = await res.json();
+          if (cfg?.SUPABASE_URL && cfg?.SUPABASE_ANON_KEY) {
+            url = cfg.SUPABASE_URL;
+            key = cfg.SUPABASE_ANON_KEY;
+          }
+        }
+      } catch (_e) {
+        // 로컬 파일 실행(file://) 등에서 /api가 없을 수 있음
+      }
+
+      if (url && key && window.supabase) {
+        supabase = window.supabase.createClient(url, key);
+      }
     }
     
     let data = { stores: [] };
@@ -937,7 +954,13 @@
       }
     });
 
-    loadData().then(() => render());
+    async function bootstrap() {
+      await initializeSupabase();
+      await loadData();
+      render();
+    }
+
+    bootstrap();
   </script>
 </body>
 </html>
