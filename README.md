@@ -10,7 +10,24 @@
 2. SQL Editor에서 `schema.sql` 실행
 3. Settings → API에서 URL과 anon key 확인
 
-### 2. 로컬 실행
+### 2. env.js 설정 (1회)
+
+`env.js.example`를 복사해서 `env.js`를 만들고, 값을 입력하세요.
+
+```bash
+cp env.js.example env.js
+```
+
+`env.js` 예시:
+
+```js
+window.env = {
+  SUPABASE_URL: "https://YOUR_PROJECT.supabase.co",
+  SUPABASE_ANON_KEY: "YOUR_ANON_KEY"
+};
+```
+
+### 3. 로컬 실행
 
 ```bash
 # 브라우저에서 열기
@@ -19,7 +36,7 @@ open index.html
 npx serve .
 ```
 
-### 3. Vercel 배포
+### 4. Vercel 배포
 
 1. GitHub에 푸시
 2. Vercel에서 Import
