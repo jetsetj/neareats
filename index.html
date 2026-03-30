@@ -451,27 +451,48 @@
 
   <script>
     var supabase = null;
+    let initDebugMessage = '';
     
     async function initializeSupabase() {
       // 1) local env.js 2) localStorage 3) Vercel /api/config 순서로 보완
       let url = window.env?.SUPABASE_URL || localStorage.getItem('supabase_url') || '';
       let key = window.env?.SUPABASE_ANON_KEY || localStorage.getItem('supabase_anon_key') || '';
+      let source = (window.env?.SUPABASE_URL && window.env?.SUPABASE_ANON_KEY) ? 'env.js' : '';
+      let apiError = '';
 
       try {
         const res = await fetch('/api/config', { cache: 'no-store' });
         if (res.ok) {
-          const cfg = await res.json();
-          if (cfg?.SUPABASE_URL && cfg?.SUPABASE_ANON_KEY) {
-            url = cfg.SUPABASE_URL;
-            key = cfg.SUPABASE_ANON_KEY;
+          const ct = res.headers.get('content-type') || '';
+          if (ct.includes('application/json')) {
+            const cfg = await res.json();
+            if (cfg?.SUPABASE_URL && cfg?.SUPABASE_ANON_KEY) {
+              url = cfg.SUPABASE_URL;
+              key = cfg.SUPABASE_ANON_KEY;
+              source = '/api/config';
+            }
+          } else {
+            apiError = '/api/config 응답이 JSON이 아닙니다.';
           }
+        } else {
+          apiError = `/api/config HTTP ${res.status}`;
         }
       } catch (_e) {
         // 로컬 파일 실행(file://) 등에서 /api가 없을 수 있음
+        apiError = '/api/config 요청 실패';
       }
 
       if (url && key && window.supabase) {
         supabase = window.supabase.createClient(url, key);
+        initDebugMessage = `초기화 성공 (${source || 'localStorage'})`;
+      } else {
+        const missing = [];
+        if (!url) missing.push('SUPABASE_URL');
+        if (!key) missing.push('SUPABASE_ANON_KEY');
+        if (!window.supabase) missing.push('supabase-js CDN');
+        initDebugMessage =
+          `초기화 실패: ${missing.join(', ') || '알 수 없음'}` +
+          (apiError ? ` / ${apiError}` : '');
       }
     }
     
@@ -573,7 +594,14 @@
 
     async function testDbConnection() {
       if (!supabase) {
-        alert('Supabase가 연결되지 않았습니다. 설정을 완료해주세요.');
+        await initializeSupabase();
+      }
+      if (!supabase) {
+        alert(
+          'Supabase가 연결되지 않았습니다.\n' +
+          initDebugMessage + '\n\n' +
+          'Vercel이라면 /api/config URL이 JSON을 반환하는지 확인하세요.'
+        );
         return;
       }
       
