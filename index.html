@@ -294,6 +294,14 @@
       color: var(--star);
     }
 
+    .star-rating button.half {
+      background: linear-gradient(90deg, var(--star) 50%, #444c56 50%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      color: transparent;
+    }
+
     .rating-value {
       margin-left: 8px;
       color: #8b949e;
@@ -631,23 +639,23 @@
             });
           }
           
-          let storeRatings = [];
           const { data: fetchedStoreRatings, error: storeRatingError } = await supabase
             .from('store_ratings')
             .select('*')
             .eq('store_id', store.id)
-            .order('rated_at', { ascending: false });
+            .order('created_at', { ascending: false })
+            .limit(1);
 
           if (storeRatingError && !String(storeRatingError.message || '').includes('store_ratings')) {
             throw storeRatingError;
           }
-          storeRatings = fetchedStoreRatings || [];
+          const storeLastRating = fetchedStoreRatings?.[0]?.rating || 0;
 
           data.stores.push({
             id: store.id,
             name: store.name,
             menus: menusWithRatings,
-            ratings: storeRatings
+            store_rating: Number(storeLastRating) || 0
           });
         }
         
@@ -724,14 +732,14 @@
       return { avgRating, count };
     }
 
-    function getStoreAvgRating(store) {
-      const ratings = store.ratings || [];
-      if (ratings.length === 0) return 0;
-      return calculateWeightedRating(ratings);
+    function getStoreRating(store) {
+      return Number(store.store_rating || 0);
     }
 
     function getStoreVisitCount(store) {
-      return (store.ratings || []).length;
+      return (store.menus || []).reduce((sum, m) => {
+        return sum + ((m.ratings || []).length);
+      }, 0);
     }
 
     function formatPrice(price) {
@@ -771,11 +779,11 @@
       if (sortBy === 'name') {
         stores.sort((a, b) => a.name.localeCompare(b.name));
       } else if (sortBy === 'rating') {
-        stores.sort((a, b) => getStoreAvgRating(b) - getStoreAvgRating(a));
+        stores.sort((a, b) => getStoreRating(b) - getStoreRating(a));
       } else if (sortBy === 'count') {
         stores.sort((a, b) => {
-          const aCount = a.menus.reduce((sum, m) => sum + (m.ratings?.length || 0), 0);
-          const bCount = b.menus.reduce((sum, m) => sum + (m.ratings?.length || 0), 0);
+          const aCount = getStoreVisitCount(a);
+          const bCount = getStoreVisitCount(b);
           return bCount - aCount;
         });
       }
@@ -786,14 +794,18 @@
       }
 
       tree.innerHTML = stores.map(store => {
-        const storeRating = getStoreAvgRating(store);
+        const storeRating = getStoreRating(store);
+        const storeVisitCount = getStoreVisitCount(store);
         
         return `
           <div class="store" data-store-id="${store.id}">
             <div class="store-header" onclick="toggleStore('${store.id}')">
               <span class="expand-icon">▶</span>
               <span class="store-name">${store.name}</span>
-              <span class="store-rating">${storeRating > 0 ? formatRating(storeRating) + '★ [' + getStoreVisitCount(store) + '회]' : ''}</span>
+              <span class="store-rating">
+                ${storeRating > 0 ? formatRating(storeRating) + '★ ' : ''}
+                ${storeVisitCount > 0 ? '[' + storeVisitCount + '회]' : ''}
+              </span>
               <div class="store-actions" onclick="event.stopPropagation()">
                 <button onclick="showStoreRatingModal('${store.id}')">별점</button>
                 <button onclick="showAddMenuModal('${store.id}')">+ 메뉴</button>
@@ -999,8 +1011,11 @@
     function bindStarRatingEvents() {
       const stars = document.querySelectorAll('#starRating button[data-star]');
       stars.forEach((btn) => {
-        btn.addEventListener('click', () => {
-          const v = parseFloat(btn.dataset.star || '0');
+        btn.addEventListener('click', (e) => {
+          const star = parseFloat(btn.dataset.star || '0');
+          const rect = btn.getBoundingClientRect();
+          const clickX = e.clientX - rect.left;
+          const v = clickX <= rect.width / 2 ? (star - 0.5) : star;
           if (v > 0) {
             currentRatingValue = v;
             renderStarRating();
@@ -1013,7 +1028,12 @@
       const stars = document.querySelectorAll('#starRating button[data-star]');
       stars.forEach((btn) => {
         const v = parseFloat(btn.dataset.star || '0');
-        btn.classList.toggle('filled', v <= currentRatingValue);
+        btn.classList.remove('filled', 'half');
+        if (currentRatingValue >= v) {
+          btn.classList.add('filled');
+        } else if (currentRatingValue >= (v - 0.5)) {
+          btn.classList.add('half');
+        }
       });
       const text = document.getElementById('ratingValueText');
       text.textContent = `${formatRating(currentRatingValue)} ★`;
@@ -1063,9 +1083,17 @@
       try {
         let error = null;
         if (currentRatingTarget === 'store') {
+          await supabase
+            .from('store_ratings')
+            .delete()
+            .eq('store_id', currentStoreId);
           const result = await supabase
             .from('store_ratings')
-            .insert({ store_id: currentStoreId, rating, rated_at: new Date().toISOString().split('T')[0] });
+            .insert({
+              store_id: currentStoreId,
+              rating,
+              rated_at: new Date().toISOString().split('T')[0]
+            });
           error = result.error;
         } else {
           const result = await supabase
