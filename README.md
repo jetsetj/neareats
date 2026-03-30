@@ -10,6 +10,8 @@
 2. SQL Editor에서 `schema.sql` 실행
 3. Settings → API에서 URL과 anon key 확인
 
+> 이미 운영 중인 DB라면, 이번 버전부터 필요한 `store_ratings` 테이블과 정책을 추가로 반영해야 가게 별점이 저장됩니다.
+
 ### 2. env.js 설정 (1회)
 
 `env.js.example`를 복사해서 `env.js`를 만들고, 값을 입력하세요.

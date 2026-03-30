@@ -273,6 +273,32 @@
       outline: none;
       border-color: var(--accent);
     }
+
+    .star-rating {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .star-rating button {
+      background: transparent;
+      border: none;
+      padding: 0;
+      font-size: 1.6rem;
+      line-height: 1;
+      color: #444c56;
+      cursor: pointer;
+    }
+
+    .star-rating button.filled {
+      color: var(--star);
+    }
+
+    .rating-value {
+      margin-left: 8px;
+      color: #8b949e;
+      font-size: 0.85rem;
+    }
     
     .modal-buttons {
       display: flex;
@@ -425,22 +451,18 @@
   
   <div class="modal-overlay" id="ratingModal">
     <div class="modal">
-      <h2>별점 입력</h2>
+      <h2 id="ratingModalTitle">별점 입력</h2>
       <p id="ratingMenuName" style="margin-bottom: 15px; color: #8b949e;"></p>
       <div class="form-group">
         <label>별점</label>
-        <select id="menuRating">
-          <option value="5">5.0 ★</option>
-          <option value="4.5">4.5 ★</option>
-          <option value="4">4.0 ★</option>
-          <option value="3.5">3.5 ★</option>
-          <option value="3">3.0 ★</option>
-          <option value="2.5">2.5 ★</option>
-          <option value="2">2.0 ★</option>
-          <option value="1.5">1.5 ★</option>
-          <option value="1">1.0 ★</option>
-          <option value="0.5">0.5 ★</option>
-        </select>
+        <div class="star-rating" id="starRating" role="radiogroup" aria-label="별점 선택">
+          <button type="button" data-star="1" aria-label="1점">★</button>
+          <button type="button" data-star="2" aria-label="2점">★</button>
+          <button type="button" data-star="3" aria-label="3점">★</button>
+          <button type="button" data-star="4" aria-label="4점">★</button>
+          <button type="button" data-star="5" aria-label="5점">★</button>
+          <span class="rating-value" id="ratingValueText">0.0 ★</span>
+        </div>
       </div>
       <div class="modal-buttons">
         <button onclick="closeModal('ratingModal')">취소</button>
@@ -530,6 +552,8 @@
     let data = { stores: [] };
     let currentStoreId = null;
     let currentMenuId = null;
+    let currentRatingTarget = 'menu';
+    let currentRatingValue = 5;
     let sortBy = 'name';
     let editingStoreId = null;
     let editingMenuId = null;
@@ -607,10 +631,23 @@
             });
           }
           
+          let storeRatings = [];
+          const { data: fetchedStoreRatings, error: storeRatingError } = await supabase
+            .from('store_ratings')
+            .select('*')
+            .eq('store_id', store.id)
+            .order('rated_at', { ascending: false });
+
+          if (storeRatingError && !String(storeRatingError.message || '').includes('store_ratings')) {
+            throw storeRatingError;
+          }
+          storeRatings = fetchedStoreRatings || [];
+
           data.stores.push({
             id: store.id,
             name: store.name,
-            menus: menusWithRatings
+            menus: menusWithRatings,
+            ratings: storeRatings
           });
         }
         
@@ -688,16 +725,13 @@
     }
 
     function getStoreAvgRating(store) {
-      let total = 0;
-      let count = 0;
-      store.menus.forEach(menu => {
-        const stats = getMenuStats(menu);
-        if (stats.count > 0) {
-          total += stats.avgRating;
-          count++;
-        }
-      });
-      return count > 0 ? total / count : 0;
+      const ratings = store.ratings || [];
+      if (ratings.length === 0) return 0;
+      return calculateWeightedRating(ratings);
+    }
+
+    function getStoreVisitCount(store) {
+      return (store.ratings || []).length;
     }
 
     function formatPrice(price) {
@@ -759,8 +793,9 @@
             <div class="store-header" onclick="toggleStore('${store.id}')">
               <span class="expand-icon">▶</span>
               <span class="store-name">${store.name}</span>
-              <span class="store-rating">${storeRating > 0 ? formatRating(storeRating) + '★' : ''}</span>
+              <span class="store-rating">${storeRating > 0 ? formatRating(storeRating) + '★ [' + getStoreVisitCount(store) + '회]' : ''}</span>
               <div class="store-actions" onclick="event.stopPropagation()">
+                <button onclick="showStoreRatingModal('${store.id}')">별점</button>
                 <button onclick="showAddMenuModal('${store.id}')">+ 메뉴</button>
                 <button onclick="editStore('${store.id}')">수정</button>
                 <button class="btn-danger" onclick="deleteStore('${store.id}')">삭제</button>
@@ -961,6 +996,42 @@
       }
     }
 
+    function bindStarRatingEvents() {
+      const stars = document.querySelectorAll('#starRating button[data-star]');
+      stars.forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const v = parseFloat(btn.dataset.star || '0');
+          if (v > 0) {
+            currentRatingValue = v;
+            renderStarRating();
+          }
+        });
+      });
+    }
+
+    function renderStarRating() {
+      const stars = document.querySelectorAll('#starRating button[data-star]');
+      stars.forEach((btn) => {
+        const v = parseFloat(btn.dataset.star || '0');
+        btn.classList.toggle('filled', v <= currentRatingValue);
+      });
+      const text = document.getElementById('ratingValueText');
+      text.textContent = `${formatRating(currentRatingValue)} ★`;
+    }
+
+    function showStoreRatingModal(storeId) {
+      const store = data.stores.find(s => s.id === storeId);
+      if (!store) return;
+      currentStoreId = storeId;
+      currentMenuId = null;
+      currentRatingTarget = 'store';
+      currentRatingValue = 5;
+      document.getElementById('ratingModalTitle').textContent = '가게 별점 입력';
+      document.getElementById('ratingMenuName').textContent = `${store.name}`;
+      renderStarRating();
+      document.getElementById('ratingModal').classList.add('active');
+    }
+
     function showRatingModal(storeId, menuId) {
       const store = data.stores.find(s => s.id === storeId);
       if (!store) return;
@@ -969,7 +1040,11 @@
 
       currentStoreId = storeId;
       currentMenuId = menuId;
+      currentRatingTarget = 'menu';
+      currentRatingValue = 5;
+      document.getElementById('ratingModalTitle').textContent = '메뉴 별점 입력';
       document.getElementById('ratingMenuName').textContent = `${store.name} - ${menu.name}`;
+      renderStarRating();
       document.getElementById('ratingModal').classList.add('active');
     }
 
@@ -979,16 +1054,25 @@
         return;
       }
       
-      const rating = parseFloat(document.getElementById('menuRating').value);
+      const rating = currentRatingValue;
       
       const btn = document.getElementById('saveRatingBtn');
       btn.disabled = true;
       btn.textContent = '저장 중...';
       
       try {
-        const { error } = await supabase
-          .from('ratings')
-          .insert({ menu_id: currentMenuId, rating, rated_at: new Date().toISOString().split('T')[0] });
+        let error = null;
+        if (currentRatingTarget === 'store') {
+          const result = await supabase
+            .from('store_ratings')
+            .insert({ store_id: currentStoreId, rating, rated_at: new Date().toISOString().split('T')[0] });
+          error = result.error;
+        } else {
+          const result = await supabase
+            .from('ratings')
+            .insert({ menu_id: currentMenuId, rating, rated_at: new Date().toISOString().split('T')[0] });
+          error = result.error;
+        }
         
         if (error) throw error;
         
@@ -1012,6 +1096,9 @@
         document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('active'));
       }
     });
+
+    bindStarRatingEvents();
+    renderStarRating();
 
     async function bootstrap() {
       await initializeSupabase();
