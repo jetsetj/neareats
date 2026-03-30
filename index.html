@@ -368,6 +368,7 @@
     <header>
       <h1>📍 근처맛집</h1>
       <div class="controls">
+        <button onclick="testDbConnection()">DB 테스트</button>
         <button onclick="showAddStoreModal()">+ 가게 추가</button>
       </div>
     </header>
@@ -548,6 +549,26 @@
         showError('데이터 로드 실패: ' + error.message);
       } finally {
         isLoading = false;
+      }
+    }
+
+    async function testDbConnection() {
+      if (!supabase) {
+        alert('Supabase가 연결되지 않았습니다. 설정을 완료해주세요.');
+        return;
+      }
+      
+      try {
+        const { data, error } = await supabase
+          .from('stores')
+          .select('*')
+          .limit(1);
+        
+        if (error) throw error;
+        
+        alert('✅ DB 연결 성공!\n테이블 접근 정상');
+      } catch (error) {
+        alert('❌ DB 연결 실패\n' + error.message);
       }
     }
 
