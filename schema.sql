@@ -1,5 +1,11 @@
 -- Supabase SQL Schema for NearEats
 
+-- 재실행 시 기존 테이블/정책 정리를 위해 드롭 (초기화 허용 전제)
+DROP TABLE IF EXISTS store_ratings CASCADE;
+DROP TABLE IF EXISTS ratings CASCADE;
+DROP TABLE IF EXISTS menus CASCADE;
+DROP TABLE IF EXISTS stores CASCADE;
+
 -- 가게 테이블
 CREATE TABLE stores (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
