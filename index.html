@@ -736,6 +736,11 @@
     }
 
     async function saveStore() {
+      if (!supabase) {
+        alert('Supabase가 연결되지 않았습니다. DB 연결 후 다시 시도해주세요.');
+        return;
+      }
+      
       const name = document.getElementById('storeName').value.trim();
       if (!name) return;
       
@@ -771,6 +776,10 @@
     }
 
     async function deleteStore(storeId) {
+      if (!supabase) {
+        alert('Supabase가 연결되지 않았습니다.');
+        return;
+      }
       if (!confirm('가게를 삭제하시겠습니까?')) return;
       
       try {
@@ -812,6 +821,11 @@
     }
 
     async function saveMenu() {
+      if (!supabase) {
+        alert('Supabase가 연결되지 않았습니다.');
+        return;
+      }
+      
       const name = document.getElementById('menuName').value.trim();
       const price = document.getElementById('menuPrice').value.trim();
       if (!name) return;
@@ -848,6 +862,10 @@
     }
 
     async function deleteMenu(storeId, menuId) {
+      if (!supabase) {
+        alert('Supabase가 연결되지 않았습니다.');
+        return;
+      }
       if (!confirm('메뉴를 삭제하시겠습니까?')) return;
       
       try {
@@ -878,6 +896,11 @@
     }
 
     async function saveRating() {
+      if (!supabase) {
+        alert('Supabase가 연결되지 않았습니다.');
+        return;
+      }
+      
       const rating = parseFloat(document.getElementById('menuRating').value);
       
       const btn = document.getElementById('saveRatingBtn');
